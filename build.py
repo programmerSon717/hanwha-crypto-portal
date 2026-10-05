@@ -8,6 +8,8 @@ docs/data/ 아래에 정적 JSON 을 만든다. 원본 봇의 파일은 어떤 �
   python3 build.py [--db <경로>] [--limit N]
 """
 import argparse
+import glob
+import hashlib
 import json
 import os
 import re
@@ -187,6 +189,43 @@ def build_items(conn, limit):
     return items, articles
 
 
+def stamp_assets():
+    """HTML 이 가리키는 CSS·JS 주소에 내용 해시를 붙인다.
+
+    GitHub Pages 는 정적 파일에 긴 캐시를 걸어 준다. 그래서 코드를 고쳐 올려도
+    이미 방문한 적 있는 브라우저는 **옛 파일을 계속 쓴다**(실측: 배포가 성공해도
+    화면이 그대로였다). 주소가 달라지면 브라우저가 새로 받으므로,
+    파일이 바뀐 회차에만 값이 바뀌는 해시를 꼬리표로 단다.
+
+    내용이 그대로면 해시도 그대로라 쓸데없는 재다운로드는 생기지 않는다.
+    """
+    docs = os.path.join(ROOT, "docs")
+    digests = {}
+    for rel in ("assets/css/portal.css", "assets/js/portal.js", "assets/js/market.js"):
+        path = os.path.join(docs, rel)
+        if os.path.exists(path):
+            with open(path, "rb") as fh:
+                digests[rel] = hashlib.md5(fh.read()).hexdigest()[:8]
+
+    pat = re.compile(r"(assets/(?:css|js)/[\w.-]+\.(?:css|js))(\?v=[0-9a-f]+)?")
+    changed = 0
+    for html in glob.glob(os.path.join(docs, "*.html")):
+        with open(html, encoding="utf-8") as fh:
+            src = fh.read()
+
+        def sub(m):
+            rel = m.group(1)
+            d = digests.get(rel)
+            return f"{rel}?v={d}" if d else rel
+
+        out = pat.sub(sub, src)
+        if out != src:
+            with open(html, "w", encoding="utf-8") as fh:
+                fh.write(out)
+            changed += 1
+    return changed
+
+
 def build_names(dest):
     """국내 거래소의 한글 종목명을 받아 파일로 굳힌다.
 
@@ -314,6 +353,7 @@ def main():
         dump(f"research/{r['slug']}.json", r)
 
     n_names = build_names(os.path.join(OUT, "names-ko.json"))
+    n_stamped = stamp_assets()
 
     latest = datetime.fromtimestamp(items[0]["ts"], KST)
     cat_counts = Counter(i["c"] for i in items)
@@ -333,6 +373,7 @@ def main():
 
     print(f"[build] 최신정보 {len(items)}건 / 리서치 {len(reports)}편 / "
           f"월 묶음 {len(articles)}개 / 한글 종목명 {n_names}개 → docs/data")
+    print(f"[build] 캐시 꼬리표 갱신: HTML {n_stamped}개")
 
 
 if __name__ == "__main__":
