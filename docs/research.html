@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>리서치 · 한화 크립토 포탈</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🪙</text></svg>">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="assets/css/portal.css">
+</head>
+<body>
+<main class="container page">
+  <h1 class="page-title">리서치</h1>
+  <div class="with-side">
+    <aside class="filter">
+      <div class="filter-hd">
+        <h3>필터</h3>
+        <button class="reset" id="reset" type="button"></button>
+      </div>
+      <div class="field"><label>카테고리</label><div id="fGroup"></div></div>
+      <div class="field"><label>하위 카테고리</label><div id="fCat"></div></div>
+      <div class="field"><label>가상자산</label><div id="fAsset"></div></div>
+    </aside>
+
+    <section>
+      <div class="toolbar">
+        <div class="searchbox">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9A9AA5" stroke-width="2">
+            <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="q" placeholder="제목, 내용, 가상자산명, 심볼명 검색" aria-label="검색">
+        </div>
+        <div id="fSort"></div>
+        <div id="fPeriod"></div>
+        <div class="viewtoggle" id="view">
+          <button data-v="grid" aria-pressed="true" aria-label="카드 보기"></button>
+          <button data-v="list" aria-pressed="false" aria-label="목록 보기"></button>
+        </div>
+      </div>
+      <p class="result-count">검색결과 <b id="cnt">0</b></p>
+      <div id="out"></div>
+      <div class="pager" id="pager"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+import { mountChrome, load, select, pager, cardHTML, listHTML, esc, ICON,
+         PERIODS, withinPeriod, qs, setParams, fmtInt } from './assets/js/portal.js';
+
+mountChrome('research.html');
+document.getElementById('reset').innerHTML = ICON.reset + ' 재설정';
+document.querySelector('#view [data-v="grid"]').innerHTML = ICON.grid;
+document.querySelector('#view [data-v="list"]').innerHTML = ICON.list;
+
+const [meta, items, reports] = await Promise.all([
+  load('meta.json'), load('items.json'), load('research.json')]);
+
+/* 리서치 = 주간 리포트(Weekly Hanwha) + 봇이 깊이 있게 정리한 글(요점 3개 이상) */
+const weekly = reports.map(r => ({
+  id: r.slug, ym: '', t: r.title, d: `${r.range} 기간 발행 ${r.total.toLocaleString('ko-KR')}건을 분류별로 집계하고 주요 소식을 추렸습니다.`,
+  c: '__weekly', cl: '정기간행물', g: '마켓',
+  an: '한화 리서치', as: 'HW', ac: '#7B2EFF',
+  ts: r.ts, date: r.date, tg: ['주간브리핑', ...r.tags.slice(0, 2)],
+  nb: 99, href: `report.html?slug=${r.slug}`,
+}));
+const pool = [...weekly, ...items.filter(i => i.nb >= 3)];
+
+const state = {
+  group: qs('group'), cat: qs('cat'), asset: qs('asset'),
+  q: qs('q'), sort: qs('sort', 'rel'), period: qs('period'),
+  view: qs('view', 'grid'), page: Number(qs('page', 1)) || 1,
+};
+const PER = 9;
+
+/* ── 옵션 ─────────────────────────────────────────── */
+const groupOpts = [{ value: '', label: '전체' },
+  ...meta.groups.map(g => ({ value: g, label: g }))];
+const catOptsFor = g => [{ value: '', label: '전체' },
+  ...(!g || g === '마켓' ? [{ value: '__weekly', label: `정기간행물 (${weekly.length})` }] : []),
+  ...meta.categories.filter(c => !g || c.group === g)
+    .map(c => ({ value: c.key, label: `${c.label} (${fmtInt(c.count)})` }))];
+const assetOpts = [{ value: '', label: '전체' },
+  ...[...new Set(pool.map(i => i.an))].sort((a, b) => a.localeCompare(b, 'ko'))
+    .map(a => ({ value: a, label: a }))];
+const sortOpts = [
+  { value: 'rel', label: '관련도순' }, { value: 'new', label: '최신순' },
+  { value: 'old', label: '오래된순' }, { value: 'deep', label: '내용 많은순' },
+];
+
+const selGroup = select(document.getElementById('fGroup'), {
+  options: groupOpts, value: state.group, placeholder: '전체',
+  onChange: v => { state.group = v; state.cat = ''; selCat.set(''); refreshCat(); apply(1); },
+});
+let selCat = select(document.getElementById('fCat'), {
+  options: catOptsFor(state.group), value: state.cat, placeholder: '전체',
+  onChange: v => { state.cat = v; apply(1); },
+});
+function refreshCat() {
+  selCat = select(document.getElementById('fCat'), {
+    options: catOptsFor(state.group), value: state.cat, placeholder: '전체',
+    onChange: v => { state.cat = v; apply(1); },
+  });
+}
+const selAsset = select(document.getElementById('fAsset'), {
+  options: assetOpts, value: state.asset, placeholder: '가상자산명', searchable: true,
+  onChange: v => { state.asset = v; apply(1); },
+});
+const selSort = select(document.getElementById('fSort'), {
+  options: sortOpts, value: state.sort,
+  onChange: v => { state.sort = v; apply(1); },
+});
+const selPeriod = select(document.getElementById('fPeriod'), {
+  options: PERIODS, value: state.period, placeholder: '기간 전체',
+  onChange: v => { state.period = v; apply(1); },
+});
+
+const qEl = document.getElementById('q');
+qEl.value = state.q;
+let timer;
+qEl.oninput = () => { clearTimeout(timer); timer = setTimeout(() => { state.q = qEl.value.trim(); apply(1); }, 220); };
+
+document.querySelectorAll('#view button').forEach(b => b.onclick = () => {
+  state.view = b.dataset.v;
+  document.querySelectorAll('#view button').forEach(x =>
+    x.setAttribute('aria-pressed', String(x === b)));
+  apply(state.page);
+});
+document.querySelectorAll('#view button').forEach(b =>
+  b.setAttribute('aria-pressed', String(b.dataset.v === state.view)));
+
+document.getElementById('reset').onclick = () => {
+  Object.assign(state, { group: '', cat: '', asset: '', q: '', sort: 'rel', period: '' });
+  qEl.value = ''; selGroup.set(''); refreshCat(); selAsset.set('');
+  selSort.set('rel'); selPeriod.set(''); apply(1);
+};
+
+/* ── 적용 ─────────────────────────────────────────── */
+const out = document.getElementById('out');
+
+function apply(page = state.page) {
+  state.page = page;
+  const q = state.q.toLowerCase();
+  let list = pool.filter(i =>
+    (!state.group || i.g === state.group) &&
+    (!state.cat || i.c === state.cat) &&
+    (!state.asset || i.an === state.asset) &&
+    withinPeriod(i.ts, state.period) &&
+    (!q || i.t.toLowerCase().includes(q) || i.d.toLowerCase().includes(q)
+        || i.an.toLowerCase().includes(q) || (i.as || '').toLowerCase().includes(q)
+        || (i.tg || []).some(t => t.toLowerCase().includes(q))));
+
+  const cmp = {
+    new: (a, b) => b.ts - a.ts,
+    old: (a, b) => a.ts - b.ts,
+    deep: (a, b) => b.nb - a.nb || b.ts - a.ts,
+    rel: (a, b) => (q ? (b.t.toLowerCase().includes(q)) - (a.t.toLowerCase().includes(q)) : 0)
+                   || b.nb - a.nb || b.ts - a.ts,
+  }[state.sort];
+  list = list.sort(cmp);
+
+  document.getElementById('cnt').textContent = fmtInt(list.length);
+  const slice = list.slice((page - 1) * PER, page * PER);
+  out.className = state.view === 'grid' ? 'grid3' : 'listview';
+  out.innerHTML = slice.length
+    ? slice.map(state.view === 'grid' ? cardHTML : listHTML).join('')
+    : '<p class="empty">조건에 맞는 리서치가 없습니다.</p>';
+
+  pager(document.getElementById('pager'), {
+    page, total: list.length, perPage: PER,
+    onGo: p => { apply(p); scrollTo({ top: 0, behavior: 'smooth' }); },
+  });
+  setParams({ group: state.group, cat: state.cat, asset: state.asset, q: state.q,
+    sort: state.sort === 'rel' ? '' : state.sort, period: state.period,
+    view: state.view === 'grid' ? '' : state.view, page: page === 1 ? '' : page });
+}
+apply(state.page);
+</script>
+</body>
+</html>

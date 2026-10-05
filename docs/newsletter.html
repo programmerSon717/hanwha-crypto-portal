@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>뉴스레터 · 한화 크립토 포탈</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🪙</text></svg>">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="assets/css/portal.css">
+</head>
+<body>
+<section class="nl-hero">
+  <div><h1>Hanwha Crypto Newsletter</h1>
+    <p>Crypto Research and Information Mailing Service</p></div>
+</section>
+
+<main class="container" style="padding-bottom:40px">
+  <form class="nl-form" id="f1"></form>
+
+  <div class="nl-feature">
+    <div class="nl-ico" style="background:#FFF6D6">📚</div>
+    <div><h2>쉽고 정확한 정보</h2>
+      <p>가상자산 정보는 더 이상 어렵거나 복잡할 필요가 없습니다.
+         전문적이거나 기술적인 내용을 보다 이해하기 쉽고 정확하게 알려드립니다.</p></div>
+  </div>
+
+  <div class="nl-feature rev">
+    <div class="nl-ico" style="background:#FFE3E8">📩</div>
+    <div><h2>핵심만을 담아서</h2>
+      <p>여기 저기 흩어진 프로젝트 관련 정보를 한데 모아 핵심적인 정보만을 요약하여 알려드립니다.
+         뉴스레터를 통해 최근 정보들을 한 눈에 확인해보세요.</p></div>
+  </div>
+
+  <div class="nl-feature">
+    <div class="nl-ico" style="background:#DEE8FF">📥</div>
+    <div><h2>누구보다 빠르게</h2>
+      <p>가상 자산 소식을 국내에서 누구보다 빠르게 받아보실 수 있습니다.
+         지금 뉴스레터를 구독하시고 실시간으로 가상 자산 관련소식을 메일로 바로 받아보세요.</p></div>
+  </div>
+
+  <form class="nl-form" id="f2" style="margin:0 auto 20px"></form>
+</main>
+
+<script type="module">
+import { mountChrome, load, esc } from './assets/js/portal.js';
+mountChrome('newsletter.html');
+
+const meta = await load('meta.json').catch(() => null);
+
+const tpl = `
+  <div class="nl-row">
+    <input type="email" name="email" placeholder="이메일 주소" required aria-label="이메일 주소">
+    <button class="btn-primary" type="submit">구독하기</button>
+  </div>
+  <p class="nl-note">뉴스레터 발송을 위한 최소한의 개인정보를 수집하고 이용합니다.
+     수집된 정보는 발송 외 다른 목적으로 이용되지 않으며, 서비스가 종료되거나 구독을 해지할 경우 즉시 파기됩니다.</p>
+  <p class="nl-note" style="background:var(--surface);color:var(--ink-3)">
+     현재 포탈은 정적 사이트로 운영되어 구독 접수 서버가 연결되어 있지 않습니다.
+     입력한 주소는 이 브라우저에만 저장되며, 메일 발송 연동 시 그대로 이어서 쓸 수 있습니다.</p>`;
+
+for (const id of ['f1', 'f2']) {
+  const f = document.getElementById(id);
+  f.innerHTML = tpl;
+  f.onsubmit = e => {
+    e.preventDefault();
+    const v = f.email.value.trim();
+    try { localStorage.setItem('hanwha-newsletter', v); } catch {}
+    f.querySelector('.nl-note').innerHTML =
+      `<b style="color:var(--brand)">${esc(v)}</b> 구독 신청이 이 브라우저에 저장되었습니다.`;
+  };
+}
+
+if (meta) document.getElementById('f2').insertAdjacentHTML('beforeend',
+  `<p style="text-align:center;margin:18px 0 0;font-size:13.5px;color:var(--ink-4)">
+     최신 발행 ${esc(meta.latest_at)} · 누적 ${meta.total.toLocaleString('ko-KR')}건</p>`);
+</script>
+</body>
+</html>

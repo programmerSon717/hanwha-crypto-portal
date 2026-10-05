@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>시장동향 · 한화 크립토 포탈</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🪙</text></svg>">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="assets/css/portal.css">
+</head>
+<body>
+<main class="container page">
+  <h1 class="page-title">시장동향</h1>
+  <div class="market-card">
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <div class="ex-tabs" id="tabs"></div>
+      <div class="searchbox" style="height:42px;max-width:300px;margin-left:auto;background:#fff">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9A9AA5" stroke-width="2">
+          <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="q" placeholder="가상자산명/심볼명 검색" aria-label="자산 검색">
+      </div>
+    </div>
+    <p class="notice" id="note"></p>
+    <table class="tbl">
+      <thead><tr>
+        <th class="sortable" data-k="name">가상자산 <span class="ind">↕</span></th>
+        <th class="num sortable" data-k="price">가격 <span class="ind">↕</span></th>
+        <th class="num sortable" data-k="chg1">1H <span class="ind">↕</span></th>
+        <th class="num sortable" data-k="chg24">24H <span class="ind">↕</span></th>
+        <th class="num sortable hide-sm" data-k="chg7">7D <span class="ind">↕</span></th>
+        <th class="num sortable hide-sm" data-k="cap">시가 총액 <span class="ind">↕</span></th>
+        <th class="num sortable" data-k="vol24" aria-sort="descending">거래량(24시간) <span class="ind">↓</span></th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="7"><div class="skeleton" style="height:420px"></div></td></tr></tbody>
+    </table>
+    <div class="pager" id="pager"></div>
+    <div style="display:flex;align-items:center;margin-top:18px">
+      <span class="result-count" style="margin:0" id="cnt"></span>
+      <div style="margin-left:auto;width:110px" id="fSize"></div>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+import { mountChrome, select, pager, esc, fmtPrice, fmtKRW, pct, qs, setParams, fmtInt } from './assets/js/portal.js';
+import { fetchMarket, SOURCES, SOURCE_NOTE } from './assets/js/market.js';
+
+mountChrome('market.html');
+
+const state = {
+  src: qs('src', 'korea'), q: qs('q'),
+  key: qs('key', 'vol24'), dir: qs('dir', 'desc'),
+  page: Number(qs('page', 1)) || 1, size: Number(qs('size', 20)) || 20,
+};
+let rows = [];
+
+document.getElementById('tabs').innerHTML = SOURCES.map(s =>
+  `<button data-s="${s.key}" aria-pressed="${s.key === state.src}">
+     <span class="dot" style="background:${s.color}"></span>${s.label}</button>`).join('');
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
+  state.src = b.dataset.s; state.page = 1;
+  document.querySelectorAll('#tabs button').forEach(x =>
+    x.setAttribute('aria-pressed', String(x === b)));
+  loadSrc();
+});
+
+select(document.getElementById('fSize'), {
+  options: [10, 20, 50, 100].map(n => ({ value: String(n), label: `${n}개` })),
+  value: String(state.size), onChange: v => { state.size = Number(v); draw(1); },
+});
+
+const qEl = document.getElementById('q');
+qEl.value = state.q;
+let t;
+qEl.oninput = () => { clearTimeout(t); t = setTimeout(() => { state.q = qEl.value.trim(); draw(1); }, 200); };
+
+document.querySelectorAll('.sortable').forEach(th => th.onclick = () => {
+  const k = th.dataset.k;
+  state.dir = state.key === k && state.dir === 'desc' ? 'asc' : 'desc';
+  state.key = k;
+  document.querySelectorAll('.sortable').forEach(x => {
+    x.setAttribute('aria-sort', x === th ? (state.dir === 'desc' ? 'descending' : 'ascending') : 'none');
+    x.querySelector('.ind').textContent = x === th ? (state.dir === 'desc' ? '↓' : '↑') : '↕';
+  });
+  draw(1);
+});
+
+const body = document.getElementById('rows');
+
+async function loadSrc() {
+  document.getElementById('note').innerHTML =
+    `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+       <circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg> ${esc(SOURCE_NOTE[state.src])}`;
+  body.innerHTML = '<tr><td colspan="7"><div class="skeleton" style="height:420px"></div></td></tr>';
+  try { rows = await fetchMarket(state.src); }
+  catch { rows = []; }
+  draw(1);
+}
+
+function draw(page = state.page) {
+  state.page = page;
+  const q = state.q.toLowerCase();
+  let list = rows.filter(r => !q || r.name.toLowerCase().includes(q) || r.sym.toLowerCase().includes(q));
+  const k = state.key, sgn = state.dir === 'desc' ? -1 : 1;
+  list = [...list].sort((a, b) => {
+    if (k === 'name') return sgn * a.name.localeCompare(b.name, 'ko');
+    const av = a[k], bv = b[k];
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    return sgn * (av - bv);
+  });
+
+  const slice = list.slice((page - 1) * state.size, page * state.size);
+  body.innerHTML = slice.length ? slice.map(r => `<tr>
+      <td><span class="asset-cell">
+        ${r.image ? `<img class="coin" src="${esc(r.image)}" alt="" loading="lazy">`
+                  : `<span class="coin" style="background:${esc(r.color)}">${esc(r.sym.slice(0, 4))}</span>`}
+        ${esc(r.name)} <span class="sym">${esc(r.sym)}</span></span></td>
+      <td class="num">₩ ${fmtPrice(r.price)}</td>
+      <td class="num">${pct(r.chg1)}</td>
+      <td class="num">${pct(r.chg24)}</td>
+      <td class="num hide-sm">${pct(r.chg7)}</td>
+      <td class="num hide-sm">${r.cap ? fmtKRW(r.cap) : '-'}</td>
+      <td class="num">${r.vol24 ? fmtKRW(r.vol24) : '-'}</td>
+    </tr>`).join('')
+    : '<tr><td colspan="7"><p class="empty">시세를 불러오지 못했거나 일치하는 자산이 없습니다.</p></td></tr>';
+
+  document.getElementById('cnt').textContent = `${fmtInt(list.length)}중 ${slice.length}`;
+  pager(document.getElementById('pager'), {
+    page, total: list.length, perPage: state.size, edges: true,
+    onGo: p => { draw(p); scrollTo({ top: 0, behavior: 'smooth' }); },
+  });
+  setParams({ src: state.src === 'korea' ? '' : state.src, q: state.q,
+    key: state.key === 'vol24' ? '' : state.key, dir: state.dir === 'desc' ? '' : state.dir,
+    size: state.size === 20 ? '' : state.size, page: page === 1 ? '' : page });
+}
+loadSrc();
+</script>
+</body>
+</html>

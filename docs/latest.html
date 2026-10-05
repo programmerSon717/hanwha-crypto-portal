@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>최신정보 · 한화 크립토 포탈</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🪙</text></svg>">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="assets/css/portal.css">
+</head>
+<body>
+<main class="container page">
+  <h1 class="page-title">최신정보</h1>
+  <div class="with-side" style="grid-template-columns:minmax(0,1fr) 320px">
+    <section>
+      <div class="toolbar">
+        <span class="result-count" style="margin:0">총 <b id="cnt">0</b></span>
+        <div id="fSort" style="width:150px"></div>
+        <div id="fPeriod" style="width:150px"></div>
+        <div id="fCat" style="width:170px"></div>
+        <div class="searchbox">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9A9AA5" stroke-width="2">
+            <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="q" placeholder="검색어를 입력하세요" aria-label="검색">
+        </div>
+      </div>
+      <table class="tbl">
+        <thead><tr>
+          <th>제목</th><th style="width:170px">가상자산</th>
+          <th style="width:150px">분류</th><th style="width:110px" class="num">작성일</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="pager" id="pager"></div>
+    </section>
+
+    <aside>
+      <div class="filter" style="margin-bottom:22px">
+        <h3 style="font-size:17px;margin-bottom:12px">다가오는 일정</h3>
+        <div id="upcoming" style="font-size:14px;color:var(--ink-3)">표시할 일정이 없어요</div>
+      </div>
+      <div class="filter">
+        <h3 style="font-size:17px;margin-bottom:14px">많이 본 최신정보</h3>
+        <div id="top"></div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script type="module">
+import { mountChrome, load, select, pager, esc, initials, fmtInt,
+         PERIODS, withinPeriod, qs, setParams, BASE } from './assets/js/portal.js';
+
+mountChrome('latest.html');
+const [meta, items] = await Promise.all([load('meta.json'), load('items.json')]);
+
+const state = {
+  q: qs('q'), sort: qs('sort', 'new'), period: qs('period'),
+  cat: qs('cat'), page: Number(qs('page', 1)) || 1,
+};
+const PER = 30;
+
+select(document.getElementById('fSort'), {
+  options: [{ value: 'new', label: '최신순' }, { value: 'old', label: '오래된순' },
+            { value: 'deep', label: '많이 본 순' }],
+  value: state.sort, onChange: v => { state.sort = v; apply(1); },
+});
+select(document.getElementById('fPeriod'), {
+  options: PERIODS.map(p => p.value === '' ? { value: '', label: '전체 기간' } : p),
+  value: state.period, onChange: v => { state.period = v; apply(1); },
+});
+select(document.getElementById('fCat'), {
+  options: [{ value: '', label: '분류 전체' },
+    ...meta.categories.map(c => ({ value: c.key, label: `${c.label} (${fmtInt(c.count)})` }))],
+  value: state.cat, onChange: v => { state.cat = v; apply(1); },
+});
+
+const qEl = document.getElementById('q');
+qEl.value = state.q;
+let t;
+qEl.oninput = () => { clearTimeout(t); t = setTimeout(() => { state.q = qEl.value.trim(); apply(1); }, 220); };
+
+const rows = document.getElementById('rows');
+
+function apply(page = state.page) {
+  state.page = page;
+  const q = state.q.toLowerCase();
+  let list = items.filter(i =>
+    (!state.cat || i.c === state.cat) && withinPeriod(i.ts, state.period) &&
+    (!q || i.t.toLowerCase().includes(q) || i.d.toLowerCase().includes(q)
+        || i.an.toLowerCase().includes(q) || (i.as || '').toLowerCase().includes(q)
+        || (i.tg || []).some(x => x.toLowerCase().includes(q))));
+
+  list = list.sort({ new: (a, b) => b.ts - a.ts, old: (a, b) => a.ts - b.ts,
+    deep: (a, b) => b.nb - a.nb || b.ts - a.ts }[state.sort]);
+
+  document.getElementById('cnt').textContent = fmtInt(list.length);
+  const slice = list.slice((page - 1) * PER, page * PER);
+  rows.innerHTML = slice.length ? slice.map(it => `<tr onclick="location.href='${BASE}article.html?id=${it.id}&ym=${it.ym}'" style="cursor:pointer">
+      <td><span class="tbl-title">${esc(it.t)}</span></td>
+      <td><span class="asset-cell"><span class="coin" style="background:${esc(it.ac)}">${esc(initials(it.as, it.an))}</span>${esc(it.an)}</span></td>
+      <td><span class="chip">${esc(it.cl)}</span></td>
+      <td class="num"><span class="date">${esc(it.date)}</span></td>
+    </tr>`).join('')
+    : '<tr><td colspan="4"><p class="empty">조건에 맞는 정보가 없습니다.</p></td></tr>';
+
+  pager(document.getElementById('pager'), {
+    page, total: list.length, perPage: PER, edges: true,
+    onGo: p => { apply(p); scrollTo({ top: 0, behavior: 'smooth' }); },
+  });
+  setParams({ q: state.q, sort: state.sort === 'new' ? '' : state.sort,
+    period: state.period, cat: state.cat, page: page === 1 ? '' : page });
+}
+apply(state.page);
+
+document.getElementById('top').innerHTML =
+  [...items].sort((a, b) => b.nb - a.nb || b.ts - a.ts).slice(0, 6).map(it => `
+    <a class="feed-row" style="grid-template-columns:1fr;padding:11px 0" href="${BASE}article.html?id=${it.id}&ym=${it.ym}">
+      <span><h4>${esc(it.t)}</h4>
+        <span class="feed-sub">
+          <span class="feed-asset"><span class="coin" style="background:${esc(it.ac)}">${esc(initials(it.as, it.an))}</span>${esc(it.an)}</span>
+          <span class="date">${esc(it.date)}</span></span></span></a>`).join('');
+
+/* 다가오는 일정 — 봇 분류 중 일정 성격의 글을 미래 날짜 기준으로 모은다 */
+const soon = items.filter(i => i.ts * 1000 > Date.now()).slice(0, 5);
+if (soon.length) document.getElementById('upcoming').innerHTML = soon.map(it =>
+  `<a class="feed-row" style="grid-template-columns:1fr;padding:9px 0" href="${BASE}article.html?id=${it.id}&ym=${it.ym}">
+     <span><h4>${esc(it.t)}</h4><span class="feed-sub"><span class="date">${esc(it.date)}</span></span></span></a>`).join('');
+</script>
+</body>
+</html>
