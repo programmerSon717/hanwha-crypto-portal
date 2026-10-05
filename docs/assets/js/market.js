@@ -35,16 +35,29 @@ const memo = new Map();
 const once = (k, fn) => (memo.has(k) ? memo.get(k) : (memo.set(k, fn()), memo.get(k)));
 const SAFE = (p, fallback) => p.catch(() => fallback);
 
-/* ── 한글 종목명 사전 (업비트) ─────────────────────── */
-const koNames = () => once('ko', () => SAFE(
-  jget('https://api.upbit.com/v1/market/all').then(all => {
-    const m = new Map();
+/* ── 한글 종목명 사전 ──────────────────────────────
+   빌드 때 굳혀 둔 data/names-ko.json 을 먼저 쓴다. 업비트를 런타임에
+   직접 부르면 간헐적으로 막혀 종목명이 영문으로 떨어지기 때문이다(실측).
+   업비트가 응답하면 그 결과로 덮어써 신규 상장까지 따라간다. */
+const NAMES_URL = new URL('../../data/names-ko.json', import.meta.url).href;
+
+const koNames = () => once('ko', async () => {
+  const m = new Map();
+  try {
+    const baked = await jget(NAMES_URL, 6000);
+    for (const [sym, name] of Object.entries(baked)) m.set(sym, name);
+  } catch { /* 번들 사전이 없어도 아래 실시간 조회로 메울 수 있다 */ }
+
+  try {
+    const all = await jget('https://api.upbit.com/v1/market/all', 7000);
     for (const r of all) {
       const [q, sym] = r.market.split('-');
       if (q === 'KRW' && r.korean_name) m.set(sym, r.korean_name);
     }
-    return m;
-  }), new Map()));
+  } catch { /* 막히면 번들 사전만으로 간다 */ }
+
+  return m;
+});
 
 /* ── 글로벌 지표 (CoinGecko) ──────────────────────── */
 const gecko = () => once('cg', () => SAFE(

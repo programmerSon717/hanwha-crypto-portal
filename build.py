@@ -187,6 +187,39 @@ def build_items(conn, limit):
     return items, articles
 
 
+def build_names(dest):
+    """국내 거래소의 한글 종목명을 받아 파일로 굳힌다.
+
+    런타임에 업비트를 직접 부르면 간헐적으로 막혀(실측: 성공/실패가 오락가락)
+    종목명이 영문으로 떨어진다. 빌드 때 한 번 받아 번들에 넣어 두면
+    외부 호출이 실패해도 한글명은 언제나 나온다. CI 가 매시 돌므로 신선도도 유지된다.
+    """
+    url = "https://api.upbit.com/v1/market/all"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "hanwha-portal-build"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.load(r)
+    except Exception:
+        try:
+            raw = subprocess.run(["curl", "-sSLf", "--retry", "2", url],
+                                 capture_output=True, text=True, timeout=60).stdout
+            data = json.loads(raw)
+        except Exception as e:
+            print(f"[build] 종목명 사전 생략({type(e).__name__}) — 이전 파일을 그대로 둔다")
+            return 0
+
+    names = {}
+    for row in data:
+        market = row.get("market", "")
+        if market.startswith("KRW-") and row.get("korean_name"):
+            names[market[4:]] = row["korean_name"]
+    if not names:
+        return 0
+    with open(dest, "w", encoding="utf-8") as fh:
+        json.dump(names, fh, ensure_ascii=False, separators=(",", ":"))
+    return len(names)
+
+
 def build_research(items, articles, weeks=40):
     """주차별 리포트([Weekly Hanwha]) 를 만든다.
 
@@ -280,6 +313,8 @@ def main():
     for r in reports:
         dump(f"research/{r['slug']}.json", r)
 
+    n_names = build_names(os.path.join(OUT, "names-ko.json"))
+
     latest = datetime.fromtimestamp(items[0]["ts"], KST)
     cat_counts = Counter(i["c"] for i in items)
     dump("meta.json", {
@@ -297,7 +332,7 @@ def main():
     })
 
     print(f"[build] 최신정보 {len(items)}건 / 리서치 {len(reports)}편 / "
-          f"월 묶음 {len(articles)}개 → docs/data")
+          f"월 묶음 {len(articles)}개 / 한글 종목명 {n_names}개 → docs/data")
 
 
 if __name__ == "__main__":
