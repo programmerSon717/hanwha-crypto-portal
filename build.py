@@ -13,8 +13,10 @@ import os
 import re
 import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
+import urllib.request
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 
@@ -29,6 +31,11 @@ KST = timezone(timedelta(hours=9))
 DEFAULT_DB = os.path.expanduser(
     "~/Desktop/03_한화_업무/HanwhaDAPnews/crypto-news-bot/botstate.sqlite3"
 )
+
+# 봇 저장소가 public 이라 발행 이력 DB 를 그대로 내려받을 수 있다.
+# CI 에서는 이 경로를 쓴다 — 로컬 맥이 꺼져 있어도 포탈이 갱신된다.
+DEFAULT_DB_URL = ("https://raw.githubusercontent.com/"
+                  "programmerSon717/crypto-news-bot/main/botstate.sqlite3")
 
 # 봇의 topics.CATEGORIES 와 같은 키. 표시 이름만 포탈용으로 손봤다.
 CATEGORIES = {
@@ -53,12 +60,47 @@ CATEGORIES = {
 GROUPS = ["마켓", "정책", "매크로"]
 
 
-def open_readonly(db_path: str):
-    """원본을 건드리지 않기 위해 임시 폴더로 복사한 뒤 읽기 전용으로 연다."""
-    if not os.path.exists(db_path):
-        raise SystemExit(f"DB 를 찾을 수 없다: {db_path}")
+def fetch_db(url: str, dest: str):
+    """공개 저장소에서 발행 이력 DB 를 내려받는다(CI 경로).
+
+    macOS 의 python.org 빌드는 시스템 CA 를 안 보고 자체 번들을 쓰는데,
+    그게 설치돼 있지 않으면 urllib 가 인증서 검증에서 바로 죽는다.
+    그럴 때는 시스템 curl 로 받는다 — 어차피 같은 CA 를 쓰면 되는 일이다.
+    """
+    print(f"[build] DB 내려받는 중: {url}")
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "hanwha-portal-build"})
+        with urllib.request.urlopen(req, timeout=300) as r, open(dest, "wb") as f:
+            shutil.copyfileobj(r, f)
+    except Exception as e:
+        print(f"[build] urllib 실패({type(e).__name__}) — curl 로 재시도")
+        rc = subprocess.call(["curl", "-sSLf", "--retry", "3", "-o", dest, url])
+        if rc != 0:
+            raise SystemExit(f"DB 내려받기 실패: {url}")
+    size = os.path.getsize(dest)
+    if size < 1_000_000:
+        raise SystemExit(f"받은 DB 가 너무 작다({size} bytes) — 경로를 확인해라.")
+    print(f"[build] 내려받음: {size / 1e6:.1f} MB")
+
+
+def open_readonly(db_path: str, db_url: str = ""):
+    """원본을 건드리지 않기 위해 임시 폴더로 복사한 뒤 읽기 전용으로 연다.
+
+    db_url 이 있으면 내려받은 것을 쓴다. 어느 쪽이든 **사본만** 열며,
+    원본 봇 파일에는 쓰기 경로가 없다.
+    """
     tmp = tempfile.mkdtemp(prefix="hanwha-portal-")
     copy = os.path.join(tmp, "snapshot.sqlite3")
+
+    if db_url:
+        fetch_db(db_url, copy)
+        conn = sqlite3.connect(f"file:{copy}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        return conn, tmp
+
+    if not os.path.exists(db_path):
+        raise SystemExit(f"DB 를 찾을 수 없다: {db_path}\n"
+                         f"  → 로컬에 없으면 --db-url 로 공개 저장소에서 받아라.")
     shutil.copy2(db_path, copy)
     for ext in ("-wal", "-shm"):          # 열려 있는 DB 의 미반영 쓰기까지 함께
         side = db_path + ext
@@ -199,10 +241,13 @@ def build_research(items, articles, weeks=40):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default=os.getenv("BOT_DB", DEFAULT_DB))
+    ap.add_argument("--db-url", default=os.getenv("BOT_DB_URL", ""),
+                    help=f"공개 저장소에서 받기. 'default' 로 주면 {DEFAULT_DB_URL}")
     ap.add_argument("--limit", type=int, default=0, help="0 이면 전체")
     args = ap.parse_args()
 
-    conn, tmp = open_readonly(args.db)
+    url = DEFAULT_DB_URL if args.db_url == "default" else args.db_url
+    conn, tmp = open_readonly(args.db, url)
     try:
         items, articles = build_items(conn, args.limit)
     finally:

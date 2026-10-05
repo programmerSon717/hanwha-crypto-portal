@@ -1,27 +1,60 @@
-name: Deploy portal to GitHub Pages
+name: 포탈 빌드 & 배포
+
+# 봇 저장소(public)의 발행 이력 DB 를 받아 정적 데이터를 다시 만들고 Pages 로 올린다.
+# **봇 저장소에는 아무것도 쓰지 않는다.** raw 파일을 읽기만 한다.
+#
+# 봇은 매시 09분·39분에 폴링하고 끝나면 botstate.sqlite3 를 푸시한다.
+# 그래서 포탈은 매시 25분에 받아간다 — 09분 회차 결과가 올라온 뒤다.
 
 on:
+  schedule:
+    - cron: "25 * * * *"
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
 concurrency:
-  group: pages
+  group: portal-pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build-deploy:
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 봇 DB 받아 데이터 빌드
+        env:
+          BOT_DB_URL: https://raw.githubusercontent.com/programmerSon717/crypto-news-bot/main/botstate.sqlite3
+        run: python build.py
+
+      # 갱신된 데이터를 저장소에도 남긴다. Pages 가 죽어도 기록은 남고,
+      # 어떤 회차에 무엇이 늘었는지 커밋 이력으로 볼 수 있다.
+      - name: 데이터 커밋
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [[ -z "$(git status --porcelain docs/data)" ]]; then
+            echo "바뀐 데이터 없음 — 커밋 생략"
+            exit 0
+          fi
+          TOTAL=$(python -c "import json;print(len(json.load(open('docs/data/items.json'))))")
+          git add docs/data
+          git commit -q -m "chore: 포탈 데이터 갱신 (${TOTAL}건) [skip ci]"
+          git push -q || echo "푸시 실패 — 배포는 계속한다"
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

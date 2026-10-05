@@ -111,8 +111,8 @@ export function mountChrome(current) {
         <a class="logo" href="${BASE}index.html">${LOGO}<b>Hanwha</b><span>Crypto</span></a>
         <div class="ftr-co">
           한화 디지털자산팀 · 크립토 뉴스 포탈<br>
-          본 포탈은 사내 참고용으로 운영되는 비공개 서비스입니다.<br>
-          데이터 출처: 한화 크립토 뉴스봇 발행 이력
+          한화 크립토 뉴스봇이 발행한 글을 그대로 모아 보여줍니다.<br>
+          데이터는 봇이 폴링할 때마다 자동으로 갱신됩니다.
         </div>
         <div class="social">
           <a href="#" aria-label="Telegram"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
@@ -122,7 +122,11 @@ export function mountChrome(current) {
         </div>
       </div>
       <div><h5>서비스</h5><nav>${NAV.map(([t, h]) => `<a href="${BASE}${h}">${t}</a>`).join('')}</nav></div>
-      <div><h5>안내</h5><nav><a href="#">공지사항</a><a href="#">자주 묻는 질문</a><a href="#">데이터 기준</a></nav></div>
+      <div><h5>안내</h5><nav>
+        <a href="https://programmerson717.github.io/crypto-news-bot/" target="_blank" rel="noopener">봇 운영 콘솔 ↗</a>
+        <a href="https://programmerson717.github.io/crypto-news-bot/handoff.html" target="_blank" rel="noopener">인수인계 문서 ↗</a>
+        <a href="https://github.com/programmerSon717/crypto-news-bot" target="_blank" rel="noopener">봇 저장소 ↗</a>
+      </nav></div>
       <div><h5>약관</h5><nav><a href="#">서비스 이용 약관</a><a href="#">개인정보처리방침</a></nav></div>
       <div><h5>문의</h5><nav><a href="#">운영팀 문의</a><a href="#">소스 제보</a></nav></div>
     </div>

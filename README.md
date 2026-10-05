@@ -44,27 +44,56 @@ HanwhaCryptoPortal/
 필터의 "카테고리 → 하위 카테고리" 2단 구조는 봇의 분류 체계를
 `마켓 / 정책 / 매크로` 세 묶음으로 올려 묶은 것입니다. 라우팅 키는 봇과 동일합니다.
 
+## 공개 주소
+
+봇 운영 콘솔과 **같은 방식**입니다 — public 저장소 + GitHub Pages.
+계정이 없어도 주소만 알면 누구나 열립니다.
+
+| 서비스 | 주소 |
+|---|---|
+| 봇 운영 콘솔 (기존) | https://programmerson717.github.io/crypto-news-bot/ |
+| **크립토 포탈 (이것)** | `https://programmerson717.github.io/hanwha-crypto-portal/` |
+
+## 자동 갱신
+
+`.github/workflows/pages.yml` 이 **매시 25분**에 돕니다.
+
+```
+봇 저장소(public)의 botstate.sqlite3 를 raw 로 내려받기
+  → build.py 로 docs/data/*.json 재생성
+  → 바뀐 게 있으면 커밋
+  → Pages 배포
+```
+
+봇은 매시 09·39분에 폴링하고 끝나면 DB 를 푸시하므로, 25분 회차가 그 결과를 받아갑니다.
+**봇 저장소에는 아무것도 쓰지 않습니다 — raw 파일을 읽기만 합니다.**
+로컬 맥이 꺼져 있어도 포탈은 계속 갱신됩니다.
+
 ## 쓰는 법
 
 ```bash
-# 1) 데이터 빌드 (봇이 글을 더 발행했을 때 다시 돌린다)
+# 공개 저장소에서 받아 빌드 (CI 와 같은 경로)
+python3 build.py --db-url default
+
+# 로컬 봇 DB 로 빌드
 python3 build.py
-python3 build.py --db /다른/경로/botstate.sqlite3   # DB 위치를 바꿀 때
+python3 build.py --db /다른/경로/botstate.sqlite3
 
-# 2) 로컬 확인
-cd docs && python3 -m http.server 8787
-# → http://localhost:8787
-
-# 3) 배포 (GitHub Pages)
-git init && git add -A && git commit -m "한화 크립토 포탈"
-git branch -M main
-git remote add origin git@github.com:<계정>/<저장소>.git
-git push -u origin main
-# 저장소 Settings → Pages → Source: GitHub Actions
+# 로컬 확인
+cd docs && python3 -m http.server 8787   # → http://localhost:8787
 ```
 
-`docs/` 를 Pages 루트로 쓰므로, Actions 없이 **Settings → Pages → Deploy from a branch →
-main / docs** 로도 바로 배포됩니다.
+## 최초 배포 (한 번만)
+
+```bash
+cd ~/Desktop/03_한화_업무/HanwhaCryptoPortal
+git remote add origin https://github.com/programmerSon717/hanwha-crypto-portal.git
+git branch -M main
+git push -u origin main
+```
+
+그다음 저장소 **Settings → Pages → Source: `GitHub Actions`** 로 지정하면 끝입니다.
+(워크플로가 빌드까지 하므로 `Deploy from a branch` 가 아니라 `GitHub Actions` 여야 합니다.)
 
 ## 시세 데이터
 
