@@ -115,7 +115,7 @@ function draw(page = state.page) {
       <td><span class="asset-cell">
         ${r.image ? `<img class="coin" src="${esc(r.image)}" alt="" loading="lazy">`
                   : `<span class="coin" style="background:${esc(r.color)}">${esc(r.sym.slice(0, 4))}</span>`}
-        ${esc(r.name)} <span class="sym">${esc(r.sym)}</span></span></td>
+        ${esc(r.name)}${r.name === r.sym ? '' : ` <span class="sym">${esc(r.sym)}</span>`}</span></td>
       <td class="num">₩ ${fmtPrice(r.price)}</td>
       <td class="num">${pct(r.chg1)}</td>
       <td class="num">${pct(r.chg24)}</td>

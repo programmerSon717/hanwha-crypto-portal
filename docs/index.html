@@ -168,7 +168,7 @@ function drawTicker() {
     <a class="ticker-row" href="market.html?q=${encodeURIComponent(r.sym)}">
       <span>
         <span class="ticker-name"><span class="coin" style="background:${esc(r.color)}">${esc(r.sym.slice(0, 4))}</span>
-          ${esc(r.name)} <span class="sym">${esc(r.sym)}</span></span>
+          ${esc(r.name)}${r.name === r.sym ? '' : ` <span class="sym">${esc(r.sym)}</span>`}</span>
         <span class="ticker-price">₩ ${fmtPrice(r.price)} ${pct(r.chg24)}</span>
       </span>
       <span class="ticker-vol">₩ ${fmtKRW(r.vol24)}</span>
