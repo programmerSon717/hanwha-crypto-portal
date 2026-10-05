@@ -175,7 +175,7 @@ function drawTicker() {
     </a>`).join('') : '<p class="empty">일치하는 자산이 없습니다.</p>';
 }
 document.getElementById('tickerQ').oninput = drawTicker;
-try { rows = await fetchMarket('upbit'); drawTicker(); }
+try { rows = await fetchMarket('korea'); drawTicker(); }
 catch { tickerEl.innerHTML = '<p class="empty">시세를 불러오지 못했습니다.</p>'; }
 </script>
 </body>
