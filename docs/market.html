@@ -14,7 +14,8 @@
   <div class="market-card">
     <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
       <div class="ex-tabs" id="tabs"></div>
-      <div class="searchbox" style="height:42px;max-width:300px;margin-left:auto;background:#fff">
+      <div style="margin-left:auto;width:170px" id="fSort"></div>
+      <div class="searchbox" style="height:42px;max-width:300px;background:#fff">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9A9AA5" stroke-width="2">
           <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
         <input id="q" placeholder="가상자산명/심볼명 검색" aria-label="자산 검색">
@@ -29,7 +30,7 @@
         <th class="num sortable" data-k="chg24">24H <span class="ind">↕</span></th>
         <th class="num sortable hide-sm" data-k="chg7">7D <span class="ind">↕</span></th>
         <th class="num sortable hide-sm" data-k="cap">시가 총액 <span class="ind">↕</span></th>
-        <th class="num sortable" data-k="vol24" aria-sort="descending">거래량(24시간) <span class="ind">↓</span></th>
+        <th class="num sortable" data-k="vol24">거래량(24시간) <span class="ind">↕</span></th>
       </tr></thead>
       <tbody id="rows"><tr><td colspan="7"><div class="skeleton" style="height:420px"></div></td></tr></tbody>
     </table>
@@ -42,17 +43,29 @@
 </main>
 
 <script type="module">
-import { mountChrome, select, pager, esc, fmtPrice, fmtKRW, pct, qs, setParams, fmtInt } from './assets/js/portal.js';
-import { fetchMarket, SOURCES, SOURCE_NOTE } from './assets/js/market.js';
+import { mountChrome, select, pager, esc, coinIcon, applyLogos,
+         fmtPrice, fmtKRW, pct, qs, setParams, fmtInt } from './assets/js/portal.js';
+import { fetchMarket, logoMap, SOURCES, SOURCE_NOTE, SORTS, sortRows } from './assets/js/market.js';
 
 mountChrome('market.html');
 
 const state = {
-  src: qs('src', 'korea'), q: qs('q'),
-  key: qs('key', 'vol24'), dir: qs('dir', 'desc'),
+  src: qs('src', 'korea'), q: qs('q'), sort: qs('sort', 'vol'),
+  key: qs('key', ''), dir: qs('dir', 'desc'),
   page: Number(qs('page', 1)) || 1, size: Number(qs('size', 20)) || 20,
 };
-let rows = [];
+let rows = [], logos = new Map();
+
+select(document.getElementById('fSort'), {
+  options: SORTS, value: state.sort,
+  onChange: v => { state.sort = v; state.key = ''; clearHeadSort(); draw(1); },
+});
+function clearHeadSort() {
+  document.querySelectorAll('.sortable').forEach(x => {
+    x.setAttribute('aria-sort', 'none');
+    x.querySelector('.ind').textContent = '↕';
+  });
+}
 
 document.getElementById('tabs').innerHTML = SOURCES.map(s =>
   `<button data-s="${s.key}" aria-pressed="${s.key === state.src}">
@@ -78,6 +91,7 @@ document.querySelectorAll('.sortable').forEach(th => th.onclick = () => {
   const k = th.dataset.k;
   state.dir = state.key === k && state.dir === 'desc' ? 'asc' : 'desc';
   state.key = k;
+  state.sort = '';                      // 머리글로 정렬하면 드롭다운 기준은 비운다
   document.querySelectorAll('.sortable').forEach(x => {
     x.setAttribute('aria-sort', x === th ? (state.dir === 'desc' ? 'descending' : 'ascending') : 'none');
     x.querySelector('.ind').textContent = x === th ? (state.dir === 'desc' ? '↓' : '↑') : '↕';
@@ -95,43 +109,49 @@ async function loadSrc() {
   try { rows = await fetchMarket(state.src); }
   catch { rows = []; }
   draw(1);
+  if (!logos.size) { logos = await logoMap().catch(() => new Map()); applyLogos(body, logos); }
 }
 
 function draw(page = state.page) {
   state.page = page;
   const q = state.q.toLowerCase();
   let list = rows.filter(r => !q || r.name.toLowerCase().includes(q) || r.sym.toLowerCase().includes(q));
-  const k = state.key, sgn = state.dir === 'desc' ? -1 : 1;
-  list = [...list].sort((a, b) => {
-    if (k === 'name') return sgn * a.name.localeCompare(b.name, 'ko');
-    const av = a[k], bv = b[k];
-    if (av == null) return 1;
-    if (bv == null) return -1;
-    return sgn * (av - bv);
-  });
+
+  if (state.key) {                      // 표 머리글을 눌러 정렬한 경우
+    const k = state.key, sgn = state.dir === 'desc' ? -1 : 1;
+    list = [...list].sort((a, b) => {
+      if (k === 'name') return sgn * a.name.localeCompare(b.name, 'ko');
+      const av = a[k], bv = b[k];
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return sgn * (av - bv);
+    });
+  } else {
+    list = sortRows(list, state.sort);
+  }
 
   const slice = list.slice((page - 1) * state.size, page * state.size);
   body.innerHTML = slice.length ? slice.map(r => `<tr>
-      <td><span class="asset-cell">
-        ${r.image ? `<img class="coin" src="${esc(r.image)}" alt="" loading="lazy">`
-                  : `<span class="coin" style="background:${esc(r.color)}">${esc(r.sym.slice(0, 4))}</span>`}
+      <td><span class="asset-cell">${coinIcon(r.sym, r.name, r.color)}
         ${esc(r.name)}${r.name === r.sym ? '' : ` <span class="sym">${esc(r.sym)}</span>`}</span></td>
       <td class="num">₩ ${fmtPrice(r.price)}</td>
       <td class="num">${pct(r.chg1)}</td>
       <td class="num">${pct(r.chg24)}</td>
       <td class="num hide-sm">${pct(r.chg7)}</td>
       <td class="num hide-sm">${r.cap ? fmtKRW(r.cap) : '-'}</td>
-      <td class="num">${r.vol24 ? fmtKRW(r.vol24) : '-'}</td>
+      <td class="num">${r.vol24 ? fmtKRW(r.vol24) : '<span class="chip chip-ghost">국내 미상장</span>'}</td>
     </tr>`).join('')
     : '<tr><td colspan="7"><p class="empty">시세를 불러오지 못했거나 일치하는 자산이 없습니다.</p></td></tr>';
 
+  applyLogos(body, logos);
   document.getElementById('cnt').textContent = `${fmtInt(list.length)}중 ${slice.length}`;
   pager(document.getElementById('pager'), {
     page, total: list.length, perPage: state.size, edges: true,
     onGo: p => { draw(p); scrollTo({ top: 0, behavior: 'smooth' }); },
   });
   setParams({ src: state.src === 'korea' ? '' : state.src, q: state.q,
-    key: state.key === 'vol24' ? '' : state.key, dir: state.dir === 'desc' ? '' : state.dir,
+    sort: state.sort === 'vol' ? '' : state.sort,
+    key: state.key, dir: state.dir === 'desc' ? '' : state.dir,
     size: state.size === 20 ? '' : state.size, page: page === 1 ? '' : page });
 }
 loadSrc();

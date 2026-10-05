@@ -20,7 +20,7 @@ const CG = 'https://api.coingecko.com/api/v3/coins/markets'
 
 const COLORS = ['#F7931A', '#627EEA', '#23292F', '#14F195', '#F3BA2F', '#26A17B',
   '#2775CA', '#0033AD', '#C2A633', '#EB0029', '#2A5ADA', '#E84142', '#4DA2FF',
-  '#7B2EFF', '#FF0420', '#8247E5', '#E6007A', '#0098EA'];
+  '#5A4FCF', '#FF0420', '#8247E5', '#E6007A', '#0098EA'];
 const colorOf = sym => COLORS[[...sym].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
 
 const jget = (url, ms = 12000) => {
@@ -83,6 +83,12 @@ function merge(base, local, ko, { localOnly }) {
     const l = local?.get(b.sym);
     if (localOnly && !l) continue;         // 국내에 없는 종목은 뺀다
     seen.add(b.sym);
+
+    // 거래량 열의 뜻은 '국내 거래량'이다. 국내에 상장되지 않은 종목에
+    // 글로벌 거래량을 적어 넣으면 단위가 다른 값이 한 줄에 섞여
+    // 순위가 통째로 뒤집힌다(실측: 국내 1위가 글로벌 코인에 밀렸다).
+    // 그런 종목은 값을 비워 둔다 — 표에는 '-' 로 나오고 정렬에서는 뒤로 간다.
+    const domestic = !!l || !local;
     rows.push({
       sym: b.sym,
       name: ko.get(b.sym) || b.name,       // 한글명이 있으면 언제나 그것을 쓴다
@@ -92,7 +98,8 @@ function merge(base, local, ko, { localOnly }) {
       chg24: l?.chg24 ?? b.chg24,
       chg7: b.chg7,
       cap: b.cap,
-      vol24: l?.vol24 ?? b.vol24,
+      vol24: domestic ? (l?.vol24 ?? b.vol24) : null,
+      offshore: !domestic,                 // 국내 미상장 표시
     });
   }
 
@@ -109,21 +116,68 @@ function merge(base, local, ko, { localOnly }) {
   return rows.sort((a, b) => (b.vol24 || 0) - (a.vol24 || 0));
 }
 
-/** source: 'korea' | 'global' | 'bithumb' */
+/** source: 'korea' | 'global'
+ *
+ *  korea 는 **합집합**이다 — 국내 원화 마켓 종목에, 국내에 상장되지 않은
+ *  주요 토큰(BUIDL 같은 토큰화 펀드·스테이블코인)까지 글로벌 시세로 함께 싣는다.
+ *  국내 상장 종목은 국내 체결가로 덮어쓴다. */
 export async function fetchMarket(source = 'korea') {
   const [base, ko] = await Promise.all([gecko(), koNames()]);
   if (source === 'global') return merge(base, null, ko, {});
   const bt = await bithumb();
-  return merge(base, bt, ko, { localOnly: true });
+  return merge(base, bt, ko, { localOnly: false });
+}
+
+/** 심볼 → 공식 로고 URL. 아이콘을 늦게 끼워 넣을 때 쓴다. */
+export async function logoMap() {
+  const base = await gecko();
+  const m = new Map();
+  for (const c of base) if (c.image) m.set(c.sym, c.image);
+  return m;
+}
+
+/* 정렬 기준. 레퍼런스의 자산시세 목록과 같은 자리에 둔다.
+   이름순은 한국어 로케일로 비교하므로 한글은 ㄱㄴㄷ, 영문 종목은 A→Z 로 묶인다. */
+export const SORTS = [
+  { value: 'vol',      label: '거래량 많은순' },
+  { value: 'chg_desc', label: '변동률 높은순' },
+  { value: 'chg_asc',  label: '변동률 낮은순' },
+  { value: 'cap',      label: '시가총액순' },
+  { value: 'price',    label: '가격 높은순' },
+  { value: 'name',     label: '이름 ㄱㄴㄷ·ABC순' },
+  { value: 'sym',      label: '심볼 ABC순' },
+];
+
+const nz = v => (v == null || isNaN(v) ? null : v);
+
+export function sortRows(rows, key) {
+  const by = (pick, dir = -1) => (a, b) => {
+    const x = nz(pick(a)), y = nz(pick(b));
+    if (x == null && y == null) return 0;
+    if (x == null) return 1;            // 값 없는 종목은 언제나 뒤로
+    if (y == null) return -1;
+    return dir * (x - y);
+  };
+  const out = [...rows];
+  switch (key) {
+    case 'chg_desc': return out.sort(by(r => r.chg24, -1));
+    case 'chg_asc':  return out.sort(by(r => r.chg24, 1));
+    case 'cap':      return out.sort(by(r => r.cap, -1));
+    case 'price':    return out.sort(by(r => r.price, -1));
+    case 'name':     return out.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    case 'sym':      return out.sort((a, b) => a.sym.localeCompare(b.sym, 'en'));
+    default:         return out.sort(by(r => r.vol24, -1));
+  }
 }
 
 export const SOURCES = [
-  { key: 'korea', label: '국내 시세', color: '#7B2EFF' },
+  { key: 'korea', label: '국내 시세', color: '#F37321' },
   { key: 'global', label: '글로벌 시가', color: '#2F6BFF' },
 ];
 
 export const SOURCE_NOTE = {
-  korea: '국내 원화 마켓(빗썸) 체결가 기준입니다. 1H·7D 변동률과 시가총액은 글로벌 기준(CoinGecko)이며, '
+  korea: '국내 원화 마켓(빗썸) 체결가를 기준으로 하고, 국내 미상장 주요 토큰(BUIDL 등 토큰화 펀드·'
+       + '스테이블코인)은 글로벌 시세로 함께 싣습니다. 1H·7D 변동률과 시가총액은 글로벌 기준(CoinGecko), '
        + '종목명은 업비트 한글 표기를 따릅니다.',
   global: 'CoinGecko 기준 글로벌 시세를 원화로 환산한 값입니다.',
 };

@@ -2,10 +2,14 @@
    레퍼런스(쟁글 포탈)의 간격·반경·타이포 스케일을 그대로 따른다. */
 
 :root{
-  --brand:#7B2EFF;
-  --brand-strong:#6A1BE8;
-  --brand-soft:#F1E9FE;
-  --brand-soft-2:#F7F2FF;
+  /* 한화 CI — 오렌지 #F37321 / 코랄 #F89B6C / 골드 #FBB584 */
+  --brand:#F37321;
+  --brand-strong:#D95F13;
+  --brand-coral:#F89B6C;
+  --brand-gold:#FBB584;
+  --brand-soft:#FDEDE2;
+  --brand-soft-2:#FFF7F1;
+  --ink-brand:#8A3D0B;        /* 오렌지 배경 위 글자 — 대비 확보용 */
 
   --ink:#16161A;
   --ink-2:#44444E;
@@ -85,7 +89,7 @@ h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.02em}
 /* ── 칩/배지 ──────────────────────────────────────── */
 .chip{
   display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:var(--r-sm);
-  background:var(--brand-soft);color:var(--brand);font-size:12.5px;font-weight:600;white-space:nowrap;
+  background:var(--brand-soft);color:var(--ink-brand);font-size:12.5px;font-weight:600;white-space:nowrap;
 }
 .chip-ghost{background:var(--surface);color:var(--ink-3)}
 .badge-orig{
@@ -156,7 +160,7 @@ h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.02em}
   padding:9px 12px;border-radius:6px;font-size:14.5px;text-align:left;
 }
 .menu button:hover{background:var(--surface)}
-.menu button[aria-selected="true"]{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.menu button[aria-selected="true"]{background:var(--brand-soft);color:var(--ink-brand);font-weight:600}
 .menu-search{padding:6px 6px 8px}
 .menu-search input{width:100%;height:38px;border:1.5px solid var(--brand);border-radius:var(--r-sm);
   padding:0 12px;outline:none;font-size:14px}
@@ -199,7 +203,11 @@ h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.02em}
 .asset-cell{display:flex;align-items:center;gap:9px;font-size:14.5px;font-weight:600;white-space:nowrap}
 .asset-cell .sym{color:var(--ink-4);font-weight:500}
 .coin{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff;
-  font-size:9.5px;font-weight:800;flex:none;letter-spacing:-.04em}
+  font-size:9.5px;font-weight:800;flex:none;letter-spacing:-.04em;overflow:hidden}
+/* 거래소가 주는 공식 로고(투명 PNG)를 동그라미 규격에 맞춰 넣는다.
+   배경을 흰색으로 두어 어두운 로고도 테두리 안에서 또렷하게 보인다. */
+img.coin{background:#fff;object-fit:contain;padding:1px;box-shadow:inset 0 0 0 1px rgba(22,22,26,.07)}
+.avatar img{width:100%;height:100%;border-radius:50%;object-fit:contain;background:#fff}
 
 .tbl-dark thead th{background:var(--navy);color:#fff;font-weight:600;padding:13px 14px;border:0}
 .tbl-dark thead th:first-child{border-radius:var(--r-sm) 0 0 var(--r-sm)}
@@ -242,7 +250,7 @@ h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.02em}
 .mini3 p{font-size:13.5px;font-weight:600;line-height:1.45;margin:9px 0 0;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .weekly-box{background:var(--brand-soft-2);border-radius:var(--r-md);padding:22px;margin-top:22px}
-.weekly-box h4{color:var(--brand);font-size:17px}
+.weekly-box h4{color:var(--brand-strong);font-size:17px}
 .weekly-box .date{margin:12px 0 6px}
 .weekly-box p{margin:0;font-size:15px;font-weight:700;line-height:1.45}
 
@@ -268,7 +276,7 @@ h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.02em}
 .feed{display:flex;flex-direction:column}
 .feed-row{display:grid;grid-template-columns:46px 1fr;gap:12px;padding:13px 8px;border-radius:var(--r-sm)}
 .feed-row:hover{background:var(--surface)}
-.feed-kind{font-size:13px;color:var(--brand);font-weight:600;padding-top:1px}
+.feed-kind{font-size:13px;color:var(--brand-strong);font-weight:600;padding-top:1px}
 .feed-row h4{font-size:15px;font-weight:600;line-height:1.45;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .feed-sub{display:flex;align-items:center;gap:8px;margin-top:7px;flex-wrap:wrap}
@@ -277,8 +285,11 @@ h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.02em}
 .subhead{font-size:15.5px;font-weight:700;margin:22px 0 4px}
 
 .ticker{display:flex;flex-direction:column}
-.ticker-hd{display:grid;grid-template-columns:1fr auto;font-size:13px;color:var(--ink-3);
-  padding:10px 4px;border-bottom:1px solid var(--line)}
+.ticker-hd{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-3);
+  padding:8px 4px;border-bottom:1px solid var(--line)}
+.ticker-hd .spacer{flex:1}
+.ticker-hd .select{width:148px}
+.ticker-hd .select > button{height:34px;font-size:13px;background:var(--surface);padding:0 10px}
 .ticker-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
   padding:11px 4px;border-radius:var(--r-sm)}
 .ticker-row:hover{background:var(--surface)}
@@ -342,7 +353,7 @@ h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.02em}
 
 /* ── 뉴스레터 ─────────────────────────────────────── */
 .nl-hero{height:420px;display:grid;place-items:center;color:#fff;text-align:center;position:relative;overflow:hidden;
-  background:linear-gradient(118deg,#6A1BE8 0%,#7B2EFF 45%,#9A4DFF 100%)}
+  background:linear-gradient(118deg,#D95F13 0%,#F37321 45%,#FBB584 100%)}
 .nl-hero::after{content:"";position:absolute;inset:0;
   background:radial-gradient(60% 80% at 76% 22%,rgba(255,255,255,.22),transparent 60%)}
 .nl-hero h1{font-size:54px;position:relative;z-index:1;letter-spacing:-.03em}
@@ -378,7 +389,7 @@ h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.02em}
 .social{display:flex;gap:10px;margin-top:26px}
 .social a{width:38px;height:38px;border-radius:50%;background:var(--surface);
   display:grid;place-items:center;color:var(--ink-2)}
-.social a:hover{background:var(--brand-soft);color:var(--brand)}
+.social a:hover{background:var(--brand-soft);color:var(--brand-strong)}
 .to-top{margin-left:auto;display:flex;align-items:center;gap:6px;border:1px solid var(--line-2);
   border-radius:var(--r-sm);padding:8px 14px;font-size:13.5px;color:var(--ink-2)}
 .to-top:hover{border-color:var(--brand);color:var(--brand)}

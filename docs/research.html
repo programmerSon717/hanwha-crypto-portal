@@ -44,8 +44,9 @@
 </main>
 
 <script type="module">
-import { mountChrome, load, select, pager, cardHTML, listHTML, esc, ICON,
+import { mountChrome, load, select, pager, cardHTML, listHTML, esc, ICON, applyLogos,
          PERIODS, withinPeriod, qs, setParams, fmtInt } from './assets/js/portal.js';
+import { logoMap } from './assets/js/market.js';
 
 mountChrome('research.html');
 document.getElementById('reset').innerHTML = ICON.reset + ' 재설정';
@@ -59,7 +60,7 @@ const [meta, items, reports] = await Promise.all([
 const weekly = reports.map(r => ({
   id: r.slug, ym: '', t: r.title, d: `${r.range} 기간 발행 ${r.total.toLocaleString('ko-KR')}건을 분류별로 집계하고 주요 소식을 추렸습니다.`,
   c: '__weekly', cl: '정기간행물', g: '마켓',
-  an: '한화 리서치', as: 'HW', ac: '#7B2EFF',
+  an: '한화 리서치', as: 'HW', ac: '#F37321',
   ts: r.ts, date: r.date, tg: ['주간브리핑', ...r.tags.slice(0, 2)],
   nb: 99, href: `report.html?slug=${r.slug}`,
 }));
@@ -136,6 +137,8 @@ document.getElementById('reset').onclick = () => {
 
 /* ── 적용 ─────────────────────────────────────────── */
 const out = document.getElementById('out');
+let LOGOS = new Map();
+logoMap().then(m => { LOGOS = m; applyLogos(out, m); }).catch(() => {});
 
 function apply(page = state.page) {
   state.page = page;
@@ -165,6 +168,7 @@ function apply(page = state.page) {
     ? slice.map(state.view === 'grid' ? cardHTML : listHTML).join('')
     : '<p class="empty">조건에 맞는 리서치가 없습니다.</p>';
 
+  applyLogos(out, LOGOS);
   pager(document.getElementById('pager'), {
     page, total: list.length, perPage: PER,
     onGo: p => { apply(p); scrollTo({ top: 0, behavior: 'smooth' }); },

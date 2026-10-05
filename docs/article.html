@@ -18,8 +18,9 @@
 </main>
 
 <script type="module">
-import { mountChrome, load, esc, initials, thumb, cardHTML, qs, BASE, pct, fmtPrice } from './assets/js/portal.js';
-import { fetchMarket } from './assets/js/market.js';
+import { mountChrome, load, esc, initials, thumb, cardHTML, coinIcon, applyLogos,
+         qs, BASE, pct, fmtPrice } from './assets/js/portal.js';
+import { fetchMarket, logoMap } from './assets/js/market.js';
 
 mountChrome('research.html');
 
@@ -98,7 +99,7 @@ if (!a) {
       <div class="val">${a.tags.map(t => `<a class="chip" href="${BASE}latest.html?q=${encodeURIComponent(t)}">${esc(t)}</a>`).join('')}</div></div>
     ${a.symbol ? `<div class="aside-sec"><label>관련 가상자산 시세</label>
       <div class="price-card" id="pc">
-        <div class="top"><span class="coin" style="background:${esc(a.asset_color)}">${esc(a.symbol.slice(0, 4))}</span>
+        <div class="top">${coinIcon(a.symbol, a.asset, a.asset_color)}
           <b>${esc(a.asset)}</b></div>
         <div class="skeleton" style="height:60px"></div>
       </div></div>` : ''}`;
@@ -109,7 +110,7 @@ if (!a) {
       const r = rows.find(x => x.sym === a.symbol);
       const pc = document.getElementById('pc');
       pc.innerHTML = r ? `
-        <div class="top"><span class="coin" style="background:${esc(a.asset_color)}">${esc(a.symbol.slice(0, 4))}</span>
+        <div class="top">${coinIcon(a.symbol, a.asset, a.asset_color)}
           <b>${esc(r.name)}</b> ${pct(r.chg24)}</div>
         <div style="font-size:21px;font-weight:800;font-variant-numeric:tabular-nums">₩ ${fmtPrice(r.price)}</div>
         <div style="display:flex;gap:14px;margin-top:12px;font-size:13px;color:var(--ink-3)">
@@ -125,6 +126,8 @@ if (!a) {
   const rel = items.filter(i => i.c === a.category && i.id !== a.id).slice(0, 4);
   if (rel.length) document.getElementById('rel').innerHTML =
     `<h2 class="rel-head">연관 리서치</h2><div class="grid4">${rel.map(cardHTML).join('')}</div>`;
+
+  logoMap().then(m => applyLogos(document.body, m)).catch(() => {});
 }
 </script>
 </body>

@@ -36,16 +36,20 @@
           <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
         <input id="tickerQ" placeholder="가상자산명/심볼명" aria-label="자산 검색">
       </div>
-      <div class="ticker-hd"><span>자산</span><span>24h 거래량</span></div>
+      <div class="ticker-hd">
+        <span>자산</span><span class="spacer"></span>
+        <div id="tickerSort"></div>
+        <span>24h 거래량</span>
+      </div>
       <div class="ticker scroll-y" id="ticker"></div>
     </section>
   </div>
 </main>
 
 <script type="module">
-import { mountChrome, load, esc, cardHTML, thumb, gradient, initials,
-         fmtKRW, fmtPrice, pct, BASE } from './assets/js/portal.js';
-import { fetchMarket } from './assets/js/market.js';
+import { mountChrome, load, esc, cardHTML, thumb, gradient, initials, coinIcon,
+         applyLogos, select, fmtKRW, fmtPrice, pct, BASE } from './assets/js/portal.js';
+import { fetchMarket, logoMap, SORTS, sortRows } from './assets/js/market.js';
 
 mountChrome('index.html');
 
@@ -140,7 +144,7 @@ const feedRow = it => `<a class="feed-row" href="article.html?id=${it.id}&ym=${i
   <span>
     <h4>${esc(it.t)}</h4>
     <span class="feed-sub">
-      <span class="feed-asset"><span class="coin" style="background:${esc(it.ac)}">${esc(initials(it.as, it.an))}</span>${esc(it.an)}</span>
+      <span class="feed-asset">${coinIcon(it.as, it.an, it.ac)}${esc(it.an)}</span>
       <span class="chip">${esc(it.cl)}</span>
       <span class="date">${esc(it.date)}</span>
     </span>
@@ -160,23 +164,36 @@ document.getElementById('topFeed').innerHTML =
 /* ── 자산시세 ───────────────────────────────────── */
 const tickerEl = document.getElementById('ticker');
 tickerEl.innerHTML = '<div class="skeleton" style="height:420px"></div>';
-let rows = [];
+let rows = [], logos = new Map(), tickerSort = 'vol';
+
+select(document.getElementById('tickerSort'), {
+  options: SORTS, value: tickerSort,
+  onChange: v => { tickerSort = v; drawTicker(); },
+});
+
 function drawTicker() {
   const q = document.getElementById('tickerQ').value.trim().toLowerCase();
-  const f = rows.filter(r => !q || r.name.toLowerCase().includes(q) || r.sym.toLowerCase().includes(q));
+  const f = sortRows(
+    rows.filter(r => !q || r.name.toLowerCase().includes(q) || r.sym.toLowerCase().includes(q)),
+    tickerSort);
   tickerEl.innerHTML = f.length ? f.slice(0, 40).map(r => `
     <a class="ticker-row" href="market.html?q=${encodeURIComponent(r.sym)}">
       <span>
-        <span class="ticker-name"><span class="coin" style="background:${esc(r.color)}">${esc(r.sym.slice(0, 4))}</span>
+        <span class="ticker-name">${coinIcon(r.sym, r.name, r.color)}
           ${esc(r.name)}${r.name === r.sym ? '' : ` <span class="sym">${esc(r.sym)}</span>`}</span>
         <span class="ticker-price">₩ ${fmtPrice(r.price)} ${pct(r.chg24)}</span>
       </span>
-      <span class="ticker-vol">₩ ${fmtKRW(r.vol24)}</span>
+      <span class="ticker-vol">${r.vol24 ? '₩ ' + fmtKRW(r.vol24) : '<span class="chip chip-ghost">해외</span>'}</span>
     </a>`).join('') : '<p class="empty">일치하는 자산이 없습니다.</p>';
+  applyLogos(tickerEl, logos);
 }
 document.getElementById('tickerQ').oninput = drawTicker;
-try { rows = await fetchMarket('korea'); drawTicker(); }
-catch { tickerEl.innerHTML = '<p class="empty">시세를 불러오지 못했습니다.</p>'; }
+try {
+  rows = await fetchMarket('korea');
+  drawTicker();
+  logos = await logoMap();
+  applyLogos(document.body, logos);     // 피드 아이콘까지 한 번에 바꿔 끼운다
+} catch { tickerEl.innerHTML = '<p class="empty">시세를 불러오지 못했습니다.</p>'; }
 </script>
 </body>
 </html>

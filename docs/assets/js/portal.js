@@ -56,10 +56,12 @@ export function pct(v) {
 }
 
 /* 분류 → 썸네일 그라데이션. 레퍼런스의 'Xangle Original' 카드 자리를 채운다. */
+/* 분류별 카드 색. 한화 오렌지를 중심에 두고, 정책은 깊은 차콜,
+   매크로는 오렌지의 보색인 틸로 잡아 셋이 한 벌로 보이게 했다. */
 const GRAD = {
-  '마켓':   ['#7B2EFF', '#B06BFF'],
-  '정책':   ['#1B1B3A', '#3B2F8F'],
-  '매크로': ['#131A2F', '#1E6B8C'],
+  '마켓':   ['#F37321', '#FBB584'],
+  '정책':   ['#241F1C', '#6B3F22'],
+  '매크로': ['#0E2A33', '#2C7E92'],
 };
 export function gradient(group) {
   const [a, b] = GRAD[group] || GRAD['마켓'];
@@ -71,6 +73,36 @@ export function initials(sym, name) {
   return (name || '?').slice(0, 2);
 }
 
+/* 코인 아이콘.
+
+   CoinGecko·거래소가 종목마다 공식 로고(투명 PNG)를 주므로 그것을 쓴다.
+   다만 로고를 받아오는 데 시간이 걸리므로 **먼저 색 원을 그리고**,
+   로고가 도착하면 applyLogos 가 그 자리를 이미지로 바꿔 끼운다.
+   로고가 없는 종목(국내 전용 토큰 등)은 색 원 그대로 남는다.
+
+   cls 로 .coin(표·목록용 24px) 과 .avatar(카드 작성자용 30px) 를 가른다. */
+export function coinIcon(sym, name, color, cls = 'coin') {
+  return `<span class="${cls}" data-sym="${esc(sym || '')}" `
+       + `style="background:${esc(color)}">${esc(initials(sym, name))}</span>`;
+}
+
+/* 받아 온 로고를 이미 그려 둔 색 원에 끼워 넣는다.
+   이미지가 깨지면 원래 색 원으로 되돌린다 — 빈 칸이 남지 않게. */
+export function applyLogos(root, logos) {
+  if (!logos || !logos.size || !root) return;
+  root.querySelectorAll('span[data-sym]').forEach(el => {
+    const url = logos.get(el.dataset.sym);
+    if (!url) return;
+    const img = new Image();
+    img.className = el.className;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.onerror = () => img.replaceWith(el);
+    img.src = url;
+    el.replaceWith(img);
+  });
+}
+
 /* ── 레이아웃 주입 ─────────────────────────────────── */
 const NAV = [
   ['리서치', 'research.html'],
@@ -79,8 +111,14 @@ const NAV = [
   ['뉴스레터', 'newsletter.html'],
 ];
 
+/* 한화 CI 를 본뜬 삼엽 심볼. 세 장의 꽃잎을 120도씩 돌려 배치하고
+   브랜드 3색(오렌지·코랄·골드)을 각각 입힌다.
+   공식 SVG 자산이 있으면 이 상수만 바꿔 끼우면 된다. */
+const PETAL = "M16 2.6c4.3 6.4 4.6 10.6 0 15.1-4.6-4.5-4.3-8.7 0-15.1z";
 const LOGO = `<svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true">
-  <path d="M6 5l10 11L6 27l4 0 8-9 8 9 4 0L20 16 30 5l-4 0-8 9-8-9z" fill="#7B2EFF"/>
+  <path d="${PETAL}" fill="#F37321"/>
+  <path d="${PETAL}" fill="#F89B6C" transform="rotate(120 16 17.4)"/>
+  <path d="${PETAL}" fill="#FBB584" transform="rotate(240 16 17.4)"/>
 </svg>`;
 
 export function mountChrome(current) {
@@ -245,7 +283,7 @@ export function cardHTML(it) {
         `<span class="chip">${esc(t)}</span>`).join('')}</div>
       <div class="card-meta">
         <span class="author">
-          <span class="avatar" style="background:${esc(it.ac)}">${esc(initials(it.as, it.an))}</span>
+          ${coinIcon(it.as, it.an, it.ac, 'avatar')}
           ${esc(it.an)}
         </span>
         <span class="date">${esc(it.date)}</span>
@@ -264,7 +302,7 @@ export function listHTML(it) {
       <div class="card-tags">${(it.tg || []).slice(0, 3).map(t =>
         `<span class="chip">${esc(t)}</span>`).join('')}</div>
       <span class="author">
-        <span class="avatar" style="background:${esc(it.ac)}">${esc(initials(it.as, it.an))}</span>
+        ${coinIcon(it.as, it.an, it.ac, 'avatar')}
         ${esc(it.an)}
       </span>
     </div>
